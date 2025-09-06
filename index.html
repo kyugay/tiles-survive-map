@@ -1,0 +1,2374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport"/>
+    <title>Tiles Survive! (Map)</title>
+    <style>
+        :root {
+            --bg: #0b0f14;
+            --panel: #121820;
+            --muted: #1b2430;
+            --text: #e8eef7;
+            --sub: #a7b3c7;
+            --accent: #7c9cff;
+            --border: #263140;
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        html, body {
+            height: 100%
+        }
+
+        body {
+            margin: 0;
+            background: linear-gradient(180deg, #0b0f14, #0f141c);
+            color: var(--text);
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Ubuntu, Arial, sans-serif;
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            height: 100vh;
+        }
+
+        .side {
+            background: var(--panel);
+            border-right: 1px solid var(--border);
+            padding: 18px;
+            overflow: auto;
+            transition: transform 0.3s ease;
+        }
+
+        .burger-menu {
+            display: none;
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 1000;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .burger-menu:hover {
+            background: var(--muted);
+        }
+
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 998;
+        }
+
+        /* Color swatch styles */
+        .sw {
+            height: 42px;
+            width: 100%; /* Use full available width instead of min-width */
+            aspect-ratio: 1; /* Keep square shape */
+            border-radius: 12px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+        }
+
+        .sw:hover {
+            transform: scale(1.05);
+            border-color: var(--text);
+        }
+
+        .sw.active {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px var(--accent);
+        }
+
+        /* Mobile styles */
+        @media (max-width: 768px) {
+            .app {
+                grid-template-columns: 1fr;
+                position: relative;
+            }
+
+            .side {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 300px;
+                height: 100vh;
+                z-index: 999;
+                transform: translateX(-100%);
+                border-right: none;
+                box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+                padding-top: 70px; /* Add space for burger menu */
+            }
+
+            .side.open {
+                transform: translateX(0);
+            }
+
+            .main {
+                grid-column: 1;
+            }
+
+            .burger-menu {
+                display: flex;
+            }
+
+            .overlay.show {
+                display: block;
+            }
+
+            .zoom-controls {
+                top: 70px; /* Move below burger menu */
+                right: 8px;
+            }
+
+            .zoom-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 16px;
+            }
+
+            .mode-controls {
+                bottom: 8px;
+                right: 8px;
+            }
+
+            .mode-controls .mode-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+
+            .canvasWrap {
+                padding: 10px; /* Reduce padding on mobile */
+            }
+
+            /* Fix palette on mobile */
+            .palette {
+                grid-template-columns: repeat(4, 1fr); /* Fewer columns on mobile */
+                gap: 6px;
+            }
+
+            .sw {
+                height: auto; /* Let aspect-ratio control height */
+                border-radius: 8px; /* Smaller border radius for mobile */
+            }
+
+            .color-tag {
+                font-size: 8px;
+                padding: 1px 2px;
+            }
+        }
+
+        /* Small mobile screens */
+        @media (max-width: 480px) {
+            .side {
+                width: 280px;
+            }
+
+            .zoom-controls {
+                right: 4px;
+            }
+
+            .zoom-btn {
+                width: 28px;
+                height: 28px;
+                font-size: 14px;
+            }
+
+            .mode-controls {
+                bottom: 4px;
+                right: 4px;
+            }
+
+            .mode-controls .mode-btn {
+                width: 28px;
+                height: 28px;
+                font-size: 12px;
+            }
+
+            .canvasWrap {
+                padding: 5px;
+            }
+
+            /* Even smaller palette on small screens */
+            .palette {
+                grid-template-columns: repeat(3, 1fr); /* Even fewer columns */
+                gap: 4px;
+            }
+
+            .sw {
+                border-radius: 6px; /* Even smaller border radius */
+            }
+
+            .color-tag {
+                font-size: 7px;
+                padding: 1px;
+            }
+        }
+
+        .side h1 {
+            font-size: 18px;
+            margin: 0 0 8px;
+        }
+
+        .side {
+            font-size: 12px;
+            color: var(--sub);
+            margin-bottom: 16px;
+            line-height: 1.4
+        }
+
+        .section {
+            border: 1px solid var(--border);
+            background: #0e141b;
+            border-radius: 16px;
+            padding: 12px;
+            margin-bottom: 14px
+        }
+
+        .section h2 {
+            font-size: 13px;
+            color: var(--sub);
+            margin: 0 0 8px;
+            font-weight: 600;
+            letter-spacing: .3px
+        }
+
+        .palette {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px
+        }
+
+        .color-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .color-tag {
+            width: 100%;
+            padding: 2px 4px;
+            font-size: 10px;
+            text-align: center;
+            background: var(--muted);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            font-family: monospace;
+            text-transform: uppercase;
+        }
+
+        .color-tag:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: var(--panel);
+        }
+
+        .tools {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap
+        }
+
+        button {
+            background: #16202b;
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 9px 12px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600
+        }
+
+        button:hover {
+            background: #1a2734
+        }
+
+        .mode-controls .mode-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+            padding: 0;
+            background: #16202b;
+            color: var(--text);
+            border: 1px solid var(--border);
+            cursor: pointer;
+        }
+
+        .mode-controls .mode-btn:hover {
+            background: #1a2734;
+        }
+
+        .mode-controls .mode-btn.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .mode-controls .mode-btn.active:hover {
+            background: #6b8aeb;
+        }
+
+        .range input {
+            width: 100%
+        }
+
+        .main {
+            position: relative;
+        }
+
+        .canvasWrap {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            padding: 20px;
+            cursor: crosshair; /* Paint mode cursor (overridden by .info-mode) */
+            touch-action: none; /* Disable browser pan/zoom gestures */
+        }
+
+        .canvasWrap.panning {
+            cursor: grabbing !important;
+        }
+
+        .canvasWrap.info-mode {
+            cursor: pointer;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: #091017;
+            object-fit: contain;
+            transform-origin: center center;
+            user-select: none; /* Prevent text selection on mobile */
+            -webkit-user-select: none;
+            -webkit-touch-callout: none; /* Disable iOS callout */
+            /* Fix text rendering */
+            shape-rendering: geometricPrecision;
+            text-rendering: geometricPrecision;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Apply hardware acceleration only to region shapes, not text */
+        #regions {
+            backface-visibility: hidden;
+            transform: translateZ(0); /* Force hardware layer */
+        }
+
+        /* Ensure text elements stay crisp */
+        #region-texts {
+            will-change: auto; /* Disable hardware acceleration for text */
+            backface-visibility: visible;
+            transform: none;
+        }
+
+        .zoom-controls {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            z-index: 10;
+        }
+
+        .zoom-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 0;
+        }
+
+        .mode-controls {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            z-index: 10;
+        }
+
+
+        /* Region info modal */
+        .region-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .region-modal.show {
+            display: flex;
+        }
+
+        .region-modal-content {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            max-width: 400px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .region-modal-close {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: transparent;
+            border: none;
+            color: var(--sub);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px;
+            line-height: 1;
+        }
+
+        .region-modal-close:hover {
+            color: var(--text);
+        }
+
+        .region-modal h3 {
+            margin: 0 0 12px;
+            color: var(--text);
+            font-size: 18px;
+        }
+
+        .region-modal p {
+            margin: 0;
+            color: var(--sub);
+            line-height: 1.5;
+        }
+
+        /* Region text labels */
+        .region-text {
+            font-size: 0.7px;
+            font-weight: 600;
+            fill: var(--text);
+            text-anchor: middle;
+            dominant-baseline: central;
+            pointer-events: none;
+            user-select: none;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
+            /* Ensure crisp text rendering */
+            shape-rendering: crispEdges;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            /* Prevent hardware acceleration artifacts */
+            will-change: auto;
+            backface-visibility: visible;
+            transform: translateZ(0); /* Force own layer but keep crisp */
+        }
+    </style>
+</head>
+<body>
+<button class="burger-menu" id="burgerMenu">☰</button>
+<div class="overlay" id="overlay"></div>
+<div class="region-modal" id="regionModal">
+    <div class="region-modal-content">
+        <button class="region-modal-close" id="regionModalClose">×</button>
+        <h3 id="regionModalTitle"></h3>
+        <p id="regionModalDescription"></p>
+    </div>
+</div>
+<div class="app">
+    <aside class="side" id="sidebar">
+        <h1>Tiles Survive! (Map)</h1>
+
+        <div class="section">
+            <h2>Palette</h2>
+            <div class="palette" id="palette"></div>
+            <div style="display:flex; gap:8px; margin-top:10px">
+                <input id="customColor"
+                       style="width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:#0e141b; padding:0"
+                       title="Custom color"
+                       type="color"
+                       value="#ffb703"/>
+                <button id="addColor">Add to palette</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Tools</h2>
+            <div class="tools">
+                <button id="reset">Reset colors</button>
+                <button id="exportPNG">Export PNG</button>
+                <button id="shareState">Share link</button>
+            </div>
+            <div id="urlStatus" style="font-size: 10px; color: var(--sub); margin-top: 8px; text-align: center;"></div>
+        </div>
+
+        <div class="section">
+            <h2>Controls</h2>
+            <div style="font-size: 11px; color: var(--sub); line-height: 1.4;">
+                <strong>Modes (bottom right):</strong><br>
+                • 🖌️ Paint regions<br>
+                • ℹ️ Region information<br><br>
+                <strong>Color tags:</strong><br>
+                • Fields below colors are tags (3 chars)<br>
+                • Painted regions show tags<br>
+                • Example: "Town [EXG]"<br><br>
+                <strong>State saving:</strong><br>
+                • Auto-save to URL on changes<br>
+                • "Share link" - share short URL
+            </div>
+        </div>
+
+    </aside>
+
+    <main class="main">
+        <div class="zoom-controls">
+            <button class="zoom-btn" id="zoomIn" title="Zoom in">+</button>
+            <button class="zoom-btn" id="zoomOut" title="Zoom out">−</button>
+            <button class="zoom-btn" id="zoomReset" style="font-size: 14px;" title="Reset">⌂</button>
+        </div>
+
+        <div class="mode-controls">
+            <button class="mode-btn" id="paintMode" title="Paint mode">🖌️</button>
+            <button class="mode-btn active" id="infoMode" title="Info mode">ℹ️</button>
+        </div>
+        <div class="canvasWrap" id="canvasWrap">
+            <svg id="map" viewBox="0 0 63 63" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <style>
+                        .region {
+                            fill: #18222e;
+                            stroke: #2b3a4d;
+                            stroke-width: 0.3;
+                            cursor: pointer;
+                            transition: filter .12s ease
+                        }
+
+                        .region:hover {
+                            filter: brightness(1.15)
+                        }
+
+                        .region-text {
+                            fill: var(--text);
+                            font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Ubuntu, Arial, sans-serif;
+                            font-size: 0.7px;
+                            font-weight: 600;
+                            text-anchor: middle;
+                            dominant-baseline: central;
+                            pointer-events: none;
+                            user-select: none;
+                            /* Static positioned labels - no dynamic calculation needed */
+                            shape-rendering: crispEdges;
+                            text-rendering: optimizeLegibility;
+                            will-change: auto;
+                            backface-visibility: visible;
+                        }
+                    </style>
+                </defs>
+                <g id="regions">
+                    <!--LEVEL 1-->
+                    <path class="region" d="M4,3 6,3 6,9 2,9 2,6 3,6 3,4 4,4 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M6,2 8,2 8,1 12,1 12,5 8,5 8,6 6,6 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M6,6 8,6 8,5 12,5 12,8 11,8 11,9 8,9 8,10 6,10 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M12,1 17,1 17,4 16,4 16,6 12,6 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M17,1 21,1 21,0 22,0 22,3 21,3 21,6 16,6 16,4 17,4 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M22,1 23,1 23,0 24,0 24,1 26,1 26,4 27,4 27,6 21,6 21,3 22,3 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M26,1 28,1 28,0 31,0 31,2 30,2 30,6 27,6 27,4 26,4 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M31,1 35,1 35,6 30,6 30,2 31,2 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M35,1 37,1 37,0 39,0 39,4 40,4 40,6 35,6 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M39,1 42,1 42,0 43,0 43,1 44,1 44,4 43,4 43,6 40,6 40,4 39,4 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M44,0 45,0 45,1 49,1 49,4 48,4 48,6 43,6 43,4 44,4 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M49,1 53,1 53,4 54,4 54,6 48,6 48,4 49,4 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M53,1 56,1 56,2 58,2 58,3 59,3 59,6 54,6 54,4 53,4 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M59,3 60,3 60,5 61,5 61,9 62,9 62,10 57,10 57,9 56,9 56,6 59,6 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region"
+                          d="M51,6 56,6 56,9 57,9 57,12 55,12 55,11 54,11 54,10 53,10 53,9 52,9 52,8 51,8 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M57,10 61,10 61,11 62,11 62,13 63,13 63,14 62,14 62,15 57,15 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M57,15 63,15 63,17 62,17 62,19 63,19 63,20 59,20 59,19 57,19 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region"
+                          d="M57,19 59,19 59,20 63,20 63,22 62,22 62,23 63,23 63,25 60,25 60,24 57,24 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M57,24 60,24 60,25 63,25 63,26 62,26 62,28 63,28 63,29 57,29 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M57,29 63,29 63,30 62,30 62,32 63,32 63,33 57,33 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M57,33 62,33 62,35 61,35 61,37 62,37 62,39 57,39 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M57,39 62,39 62,40 63,40 63,43 62,43 62,44 59,44 59,43 57,43 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M57,43 59,43 59,44 63,44 63,46 62,46 62,47 61,47 61,49, 57,49Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M57,49 62,49 62,51 61,51 61,53 62,53 62,55 57,55 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region"
+                          d="M56,55 61,55 61,56 60,56 60,58 59,58 59,59 58,59 58,60 57,60 57,61 55,61 55,57 56,57 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region"
+                          d="M50,56 51,56 51,55 53,55 53,54 54,54 54,53 56,53 56,52 57,52 57,55 56,55 56,57 55,57 55,58 50,58 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M51,58 55,58 55,61 53,61 53,62 51,62 51,63 50,63 50,60 51,60 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M45,58 51,58 51,60 50,60 50,63 48,63 48,62 45,62 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M41,57 45,57 45,63 44,63 44,62 43,62 43,63 42,63 42,62 41,62 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M37,57,41,57 41,62 39,62 39,63 37,63 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M32,57 37,57 37,62 32,62 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M28,57 32,57 32,63 30,63 30,62 28,62 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M24,57 28,57 28,63 25,63 25,62 24,62 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M20,57 24,57 24,63 23,63 23,62 22,62 22,63 21,63 21,62 20,62 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M16,57 20,57 20,63 19,63 19,62 17,62 17,63 16,63 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M12,57 16,57 16,62 15,62 15,63 14,63 14,62 12,62 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M4,58 10,58 10,59 12,59 12,62 8,62 8,61 6,61 6,60 4,60 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M6,53 8,53 8,54 9,54 9,56 12,56 12,59 10,59 10,58 6,58 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M1,52 6,52 6,58 3,58 3,57 2,57 2,53 1,53 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M1,47 4,47 4,48 6,48 6,52 1,52 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M1,43 3,43 3,42 6,42 6,48 4,48 4,47 1,47 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M1,38 6,38 6,42 3,42 3,43 1,43 1,41 0,41 0,39 1,39 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M1,33 5,33 5,34 6,34 6,38 1,38 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M0,29 4,29 4,28 6,28 6,34 5,34 5,33 1,33 1,30 0,30 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M1,23 2,23 2,24 6,24 6,28 4,28 4,29 1,29 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M1,19 6,19 6,24 2,24 2,23 1,23 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M1,14 4,14 4,15 6,15 6,19 0,19 0,18 1,18 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +5.0%&#010;Points 🎖+1"
+                    />
+                    <path class="region" d="M1,9 6,9 6,15 4,15 4,14 1,14 Z"
+                          data-description="Village&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +5.0%&#010;Points 🎖+1"
+                    />
+                    <!--LEVEL 2-->
+                    <path class="region"
+                          d="M12,6 14,6 14,10 12,10 12,11 11,11 11,12 9,12 9,11 8,11 8,9 11,9 11,8 12,8 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Research Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M14,6 20,6 20,10 14,10 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Training Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M20,6 26,6 26,10 20,10 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Construction Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M26,6 32,6 32,10 26,10 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Research Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M32,6 38,6 38,10 32,10 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Training Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M38,6 44,6 44,10 38,10 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Construction Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M44,6 51,6 51,8 50,8 50,10 44,10 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Research Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region"
+                          d="M50,8 52,8 52,9 53,9 53,10 54,10 54,11 55,11 55,12 57,12 57,14 53,14 53,13 52,13 52,12 51,12 51,11 50,11 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Training Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M53,14 57,14 57,20 53,20 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Construction Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M53,20 57,20 57,26 53,26 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Research Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M53,26 57,26 57,32 53,32 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Training Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M53,32 57,32 57,38 53,38 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Construction Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M53,38 57,38 57,44 53,44 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Research Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M53,44 57,44 57,50 53,50 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Training Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region"
+                          d="M53,50 57,50 57,52 56,52 56,53 54,53 54,54 53,54 53,55 51,55 51,56 50,56 50,53 51,53 51,52 52,52 52,51 53,51 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Construction Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M44,54 50,54 50,58 45,58 45,57 44,57 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Research Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M36,54 44,54 44,57 36,57 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Training Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M28,54 36,54 36,57 27,57 27,56 28,56 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Construction Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M20,54 28,54 28,56 27,56 27,57 21,57 21,55 20,55 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Research Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M13,54 20,54 20,55 21,55 21,57 13,57 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Training Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M9,50, 10,50 10,51 11,51 11,52 12,52 12,53 13,53 13,57 12,57 12,56 9,56 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Construction Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M6,47 9,47 9,54 8,54 8,53 6,53 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Construction Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M6,41 9,41 9,47 6,47 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Research Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M6,35 9,35 9,41 6,41 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Training Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M6,29 9,29 9,35 6,35 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Construction Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M6,23 9,23 9,29 6,29 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Research Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M6,17 9,17 9,23 6,23 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Training Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <path class="region" d="M6,10 8,10 8,11 9,11 9,17 6,17 Z"
+                          data-description="Factory&#010;&#010;Occupation Benefits:&#010;Construction Speed +5.0%&#010;Points 🎖+3"
+                    />
+                    <!--LEVEL 3-->
+                    <path class="region" d="M13,10 22,10 22,13 15,13 15,14 14,14 14,15 13,15 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Defense Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <path class="region" d="M22,10 34,10 34,13 22,13 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Health Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <path class="region" d="M34,10 45,10 45,12 43,12 43,13 34,13 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Attack Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <path class="region"
+                          d="M45,10 50,10 50,11 51,11 51,12 52,12 52,13 53,13 53,15 48,15 48,14 43,14 43,12 45,12 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Defense Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <path class="region" d="M50,15 53,15 53,25 50,25 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Health Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <path class="region" d="M50,25 53,25 53,35 50,35 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Attack Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <path class="region" d="M50,35 53,35 53,45 50,45 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Defense Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <path class="region"
+                          d="M50,45 53,45 53,51 52,51 52,52 51,52 51,53 50,53 50,54 49,54 49,48 50,48 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Health Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <path class="region" d="M43,50 47,50 47,49 49,49 49,54 43,54 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Attack Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <path class="region" d="M35,50 43,50 43,54 35,54 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Defense Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <path class="region" d="M26,50 35,50 35,54 26,54 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Health Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <path class="region" d="M15,50 26,50 26,54 15,54 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Attack Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <path class="region"
+                          d="M9,44 12,44 12,48 13,48 13,49 14,49 14,50 15,50 15,54 13,54 13,53 12,53 12,52 11,52 11,51 10,51 10,50 9,50 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Attack Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <path class="region" d="M9,33 12,33 12,44 9,44 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Defense Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <path class="region" d="M9,21 12,21 12,33 9,33 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Health Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <path class="region" d="M9,12 11,12 11,11 12,11 12,10 13,10 13,16 12,16 12,21 9,21 Z"
+                          data-description="Town&#010;&#010;Occupation Benefits:&#010;Troop Attack Bonus +2.0%&#010;Points 🎖+10"
+                    />
+                    <!--LEVEL 4-->
+                    <path class="region"
+                          d="M12,16 13,16 13,15 14,15 14,14 15,14 15,13 17,13 17,17 16,17 16,22 15,22 15,32 12,32 Z"
+                          data-description="Metropolis&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +20.0%&#010;Points 🎖+20"
+                    />
+                    <path class="region" d="M17,13 33,13 33,17 17,17 Z"
+                          data-description="Metropolis&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +20.0%&#010;Points 🎖+20"
+                    />
+                    <path class="region" d="M33,13 43,13 43,14 48,14 48,15 50,15 50,17 33,17 Z"
+                          data-description="Metropolis&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +20.0%&#010;Points 🎖+20"
+                    />
+                    <path class="region" d="M42,17 50,17 50,26 45,26 45,21 44,21 44,19 43,19 43,18 42,18 Z"
+                          data-description="Metropolis&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +20.0%&#010;Points 🎖+20"
+                    />
+                    <path class="region" d="M45,26 50,26 50,37 45,37 Z"
+                          data-description="Metropolis&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +20.0%&#010;Points 🎖+20"
+                    />
+                    <path class="region" d="M45,37 50,37 50,48 49,48 49,49 47,49 47,46 45,46 Z"
+                          data-description="Metropolis&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +20.0%&#010;Points 🎖+20"
+                    />
+                    <path class="region" d="M34,46 47,46 47,50 34,50 Z"
+                          data-description="Metropolis&#010;&#010;Occupation Benefits:&#010;Resource Gathering Speed +20.0%&#010;Points 🎖+20"
+                    />
+                    <path class="region" d="M17,46 34,46 34,50 18,50 18,47 17,47 Z"
+                          data-description="Metropolis&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +20.0%&#010;Points 🎖+20"
+                    />
+                    <path class="region"
+                          d="M12,32 15,32 15,41 16,41 16,46 17,46 17,47 18,47 18,50 14,50 14,49 13,49 13,48 12,48 Z"
+                          data-description="Metropolis&#010;&#010;Occupation Benefits:&#010;Basic Resource Production +20.0%&#010;Points 🎖+20"
+                    />
+                    <!--LEVEL 5-->
+                    <path class="region" d="M16,17 34,17 34,20 29,20 29,21 19,21 19,20 16,20 Z"
+                          data-description="Research Center&#010;&#010;Occupation Benefits:&#010;Training Speed +10.0%&#010;Points 🎖+50"
+                    />
+                    <path class="region"
+                          d="M34,17 42,17 42,18 43,18 43,19 44,19 44,21 45,21 45,29 42,29 42,24 41,24 41,21 39,21 39,20 34,20 Z"
+                          data-description="Research Center&#010;&#010;Occupation Benefits:&#010;Training Speed +10.0%&#010;Points 🎖+50"
+                    />
+                    <path class="region" d="M42,29 45,29 45,46 39,46 39,43 42,43 Z"
+                          data-description="Research Center&#010;&#010;Occupation Benefits:&#010;Training Speed +10.0%&#010;Points 🎖+50"
+                    />
+                    <path class="region"
+                          d="M29,42 36,42 36,41 40,41 40,40 41,40 41,39 42,39 42,43 39,43 39,46 29,46 Z"
+                          data-description="Research Center&#010;&#010;Occupation Benefits:&#010;Training Speed +10.0%&#010;Points 🎖+50"
+                    />
+                    <path class="region" d="M16,42 29,42 29,46 16,46 Z"
+                          data-description="Research Center&#010;&#010;Occupation Benefits:&#010;Training Speed +10.0%&#010;Points 🎖+50"
+                    />
+                    <path class="region" d="M15,22 16,22 16,20 19,20 19,25 18,25 18,42 16,42 16,41 15,41 Z"
+                          data-description="Research Center&#010;&#010;Occupation Benefits:&#010;Training Speed +10.0%&#010;Points 🎖+50"
+                    />
+                    <!--LEVEL 6-->
+                    <path class="region" d="M19,21 26,21 26,37 20,37 20,42 18,42 18,25 19,25 Z"
+                          data-description="Military Base&#010;&#010;Occupation Benefits:&#010;Troop Attack Bonus +5.0%&#010;Points 🎖+50"
+                    />
+                    <path class="region"
+                          d="M26,21 29,21 29,20 39,20 39,21 41,21 41,24 42,24 42,33 37,33 37,26 26,26 Z"
+                          data-description="Military Base&#010;&#010;Occupation Benefits:&#010;Troop Defense Bonus +5.0%&#010;Points 🎖+50"
+                    />
+                    <path class="region"
+                          d="M20,37 37,37 37,33 42,33 42,39 41,39 41,40 40,40 40,41 36,41 36,42 20,42 Z"
+                          data-description="Military Base&#010;&#010;Occupation Benefits:&#010;Troop Health Bonus +5.0%&#010;Points 🎖+50"
+                    />
+                    <!--ARCADIA-->
+                    <path class="region" d="M26,26 37,26 37,37 26,37 Z"
+                          data-description="Arcadia was built as a last resort during the apocalypse. Hidden way up in the clouds, it's completely virus-free and packed with resources."
+                    />
+                </g>
+
+                <!-- 
+                    Static region labels for ALL 111 regions - positions are pre-calculated and fixed in HTML
+                    JavaScript only updates text content, never repositions elements
+                    This ensures optimal performance and eliminates layout calculations
+                -->
+                <g id="region-texts">
+                    <text class="region-text" x="4.0" y="7.0" data-region-index="0" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="9.0" y="3.5" data-region-index="1" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="9.0" y="7.0" data-region-index="2" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="14.5" y="3.0" data-region-index="3" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="19.0" y="3.0" data-region-index="4" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="24.0" y="3.0" data-region-index="5" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="28.0" y="3.0" data-region-index="6" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="32.5" y="3.0" data-region-index="7" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="37.0" y="3.0" data-region-index="8" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="41.5" y="3.0" data-region-index="9" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="46.0" y="3.0" data-region-index="10" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="51.0" y="3.0" data-region-index="11" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="56.0" y="3.5" data-region-index="12" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="58.5" y="7.5" data-region-index="13" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="54.0" y="8.0" data-region-index="14" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="59.5" y="12.5" data-region-index="15" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="59.5" y="17.5" data-region-index="16" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="59.5" y="22.0" data-region-index="17" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="59.5" y="27.0" data-region-index="18" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="59.5" y="31.0" data-region-index="19" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="59.0" y="36.0" data-region-index="20" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="59.5" y="41.5" data-region-index="21" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="59.5" y="46.0" data-region-index="22" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="59.0" y="52.0" data-region-index="23" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="58.0" y="58.0" data-region-index="24" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="54.0" y="56.0" data-region-index="25" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="53.0" y="60.0" data-region-index="26" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="47.5" y="60.0" data-region-index="27" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="43.0" y="59.5" data-region-index="28" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="39.0" y="59.5" data-region-index="29" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="34.5" y="59.5" data-region-index="30" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="30.0" y="59.5" data-region-index="31" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="26.0" y="59.5" data-region-index="32" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="22.0" y="59.5" data-region-index="33" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="18.0" y="59.5" data-region-index="34" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="14.0" y="59.5" data-region-index="35" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="8.5" y="60.0" data-region-index="36" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="8.0" y="57.0" data-region-index="37" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="4.0" y="55.0" data-region-index="38" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="3.5" y="50.0" data-region-index="39" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="3.5" y="45.0" data-region-index="40" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="3.5" y="40.0" data-region-index="41" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="3.5" y="35.5" data-region-index="42" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="3.5" y="31.0" data-region-index="43" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="3.5" y="26.0" data-region-index="44" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="3.5" y="21.5" data-region-index="45" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="3.5" y="17.0" data-region-index="46" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="3.5" y="12.0" data-region-index="47" data-original-text="1️⃣">1️⃣</text>
+                    <text class="region-text" x="10.0" y="10.0" data-region-index="48" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="17.0" y="8.0" data-region-index="49" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="23.0" y="8.0" data-region-index="50" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="29.0" y="8.0" data-region-index="51" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="35.0" y="8.0" data-region-index="52" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="41.0" y="8.0" data-region-index="53" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="47.0" y="8.0" data-region-index="54" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="53.0" y="11.5" data-region-index="55" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="55.0" y="17.0" data-region-index="56" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="55.0" y="23.0" data-region-index="57" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="55.0" y="29.0" data-region-index="58" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="55.0" y="35.0" data-region-index="59" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="55.0" y="41.0" data-region-index="60" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="55.0" y="47.0" data-region-index="61" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="54.0" y="52.0" data-region-index="62" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="47.0" y="55.5" data-region-index="63" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="40.0" y="55.5" data-region-index="64" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="31.5" y="55.5" data-region-index="65" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="24.0" y="55.5" data-region-index="66" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="17.0" y="55.5" data-region-index="67" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="11.0" y="54.5" data-region-index="68" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="7.5" y="50.5" data-region-index="69" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="7.5" y="44.0" data-region-index="70" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="7.5" y="38.0" data-region-index="71" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="7.5" y="32.0" data-region-index="72" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="7.5" y="26.0" data-region-index="73" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="7.5" y="20.0" data-region-index="74" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="7.5" y="13.5" data-region-index="75" data-original-text="2️⃣">2️⃣</text>
+                    <text class="region-text" x="17.5" y="11.5" data-region-index="76" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="28.0" y="11.5" data-region-index="77" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="39.5" y="11.5" data-region-index="78" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="48.0" y="12.5" data-region-index="79" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="51.5" y="20.0" data-region-index="80" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="51.5" y="30.0" data-region-index="81" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="51.5" y="40.0" data-region-index="82" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="51.0" y="49.5" data-region-index="83" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="46.0" y="52.0" data-region-index="84" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="39.0" y="52.0" data-region-index="85" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="30.5" y="52.0" data-region-index="86" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="20.5" y="52.0" data-region-index="87" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="11.0" y="49.0" data-region-index="88" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="10.5" y="38.5" data-region-index="89" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="10.5" y="27.0" data-region-index="90" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="11.0" y="15.0" data-region-index="91" data-original-text="3️⃣">3️⃣</text>
+                    <text class="region-text" x="14.0" y="20.5" data-region-index="92" data-original-text="4️⃣">4️⃣</text>
+                    <text class="region-text" x="25.0" y="15.0" data-region-index="93" data-original-text="4️⃣">4️⃣</text>
+                    <text class="region-text" x="40.5" y="15.0" data-region-index="94" data-original-text="4️⃣">4️⃣</text>
+                    <text class="region-text" x="47.5" y="21.5" data-region-index="95" data-original-text="4️⃣">4️⃣</text>
+                    <text class="region-text" x="47.5" y="31.5" data-region-index="96" data-original-text="4️⃣">4️⃣</text>
+                    <text class="region-text" x="47.5" y="43.0" data-region-index="97" data-original-text="4️⃣">4️⃣</text>
+                    <text class="region-text" x="40.5" y="48.0" data-region-index="98" data-original-text="4️⃣">4️⃣</text>
+                    <text class="region-text" x="25.5" y="48.0" data-region-index="99" data-original-text="4️⃣">4️⃣</text>
+                    <text class="region-text" x="14.0" y="44.0" data-region-index="100" data-original-text="4️⃣">4️⃣</text>
+                    <text class="region-text" x="26.0" y="18.5" data-region-index="101" data-original-text="5️⃣">5️⃣</text>
+                    <text class="region-text" x="39.0" y="18.5" data-region-index="102" data-original-text="5️⃣">5️⃣</text>
+                    <text class="region-text" x="43.5" y="36.0" data-region-index="103" data-original-text="5️⃣">5️⃣</text>
+                    <text class="region-text" x="37.0" y="44.0" data-region-index="104" data-original-text="5️⃣">5️⃣</text>
+                    <text class="region-text" x="22.5" y="44.0" data-region-index="105" data-original-text="5️⃣">5️⃣</text>
+                    <text class="region-text" x="16.5" y="31.5" data-region-index="106" data-original-text="5️⃣">5️⃣</text>
+                    <text class="region-text" x="22.5" y="31.0" data-region-index="107" data-original-text="6️⃣">6️⃣</text>
+                    <text class="region-text" x="36.5" y="23.0" data-region-index="108" data-original-text="6️⃣">6️⃣</text>
+                    <text class="region-text" x="36.5" y="39.0" data-region-index="109" data-original-text="6️⃣">6️⃣</text>
+                    <text class="region-text" x="31.5" y="31.5" data-region-index="110" data-original-text="Arcadia">Arcadia</text>
+                </g>
+            </svg>
+        </div>
+    </main>
+</div>
+
+<script>
+    const mapEl = document.getElementById('map');
+    const regionsGroup = () => mapEl.querySelector('#regions') || mapEl;
+
+    // -------- Palette --------
+    const defaultColors = ['#2ECC71', '#3498DB', '#F39C12', '#E74C3C', '#9B59B6'];
+    const paletteEl = document.getElementById('palette');
+    let currentColor = defaultColors[0];
+    let eyedropperMode = false;
+    let colorTags = {
+        '#2ECC71': 'EXG',
+        '#3498DB': 'ASG',
+        '#F39C12': 'WAR',
+        '#E74C3C': 'STA',
+        '#9B59B6': 'MOB'
+    }; // Store tags for each color
+
+    // -------- URL State Management --------
+    let saveTimeout = null;
+
+    function validateHexColor(color) {
+        return /^#[0-9A-Fa-f]{6}$/.test(color);
+    }
+
+    function validateTag(tag) {
+        // Only allow alphanumeric characters, max 3 chars
+        return /^[A-Z0-9]{0,3}$/.test(tag);
+    }
+
+    function saveStateToURL(immediate = false) {
+        // Debounce saves to avoid excessive URL updates
+        if (!immediate) {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => saveStateToURL(true), 500);
+            return;
+        }
+
+        try {
+            // Collect painted regions by index instead of name
+            const regionData = {};
+            const allRegions = Array.from(regionsGroup().querySelectorAll('.region'));
+    
+
+            allRegions.forEach((region, index) => {
+                const color = region.getAttribute('data-fill');
+                if (color && validateHexColor(color)) {
+        
+                    regionData[index] = color; // Use index instead of name
+                }
+            });
+
+            // Optimize colors: convert hex to shorter format
+            const validColors = defaultColors.filter(validateHexColor);
+            const colorMap = {};
+            const compactColors = validColors.map((color, index) => {
+                // Remove # and convert to base 36 if possible
+                let compact = color.slice(1);
+                colorMap[color] = index; // Map original color to index
+                return compact;
+            });
+
+            // Optimize tags: use color indices instead of hex values
+            const compactTags = {};
+            Object.keys(colorTags).forEach(color => {
+                if (validateHexColor(color) && validateTag(colorTags[color]) && colorTags[color] && colorMap.hasOwnProperty(color)) {
+                    compactTags[colorMap[color]] = colorTags[color];
+                }
+            });
+
+            // Optimize regions: create array instead of object for very compact representation
+            const maxRegionIndex = Math.max(...Object.keys(regionData).map(Number), -1);
+            const compactRegions = [];
+            if (maxRegionIndex >= 0) {
+                for (let i = 0; i <= maxRegionIndex; i++) {
+                    if (regionData[i] && colorMap.hasOwnProperty(regionData[i])) {
+                        compactRegions[i] = colorMap[regionData[i]]; // Store color index instead of hex
+                    }
+                }
+            }
+
+            const state = {
+                v: 3,               // version 3 for ultra-compact format
+                c: compactColors,   // colors as hex without #
+                t: compactTags,     // tags by color index
+                r: compactRegions   // regions as sparse array with color indices
+            };
+
+
+
+            const stateStr = JSON.stringify(state);
+            
+            // Use base64 with proper UTF-8 encoding for maximum compression
+            const utf8Bytes = new TextEncoder().encode(stateStr);
+            const base64 = btoa(String.fromCharCode(...utf8Bytes));
+
+
+
+            // Check URL size limit (base64 is much more compact)
+            if (base64.length > 8000) {
+                const statusEl = document.getElementById('urlStatus');
+                if (statusEl) {
+                    statusEl.textContent = `⚠ State too large for URL (${base64.length} chars)`;
+                    setTimeout(() => {
+                        statusEl.textContent = '';
+                    }, 3000);
+                }
+                return;
+            }
+            const url = new URL(window.location);
+            url.searchParams.set('s', base64); // Shorter parameter name
+
+            // Update URL without page reload
+            window.history.replaceState({}, '', url);
+
+            // Update status indicator
+            const statusEl = document.getElementById('urlStatus');
+            if (statusEl) {
+                statusEl.textContent = `✓ Saved (${base64.length} chars)`;
+                statusEl.title = `URL: ${url.href.length} chars\nData: ${base64.length} chars\nCompression: ${((1 - base64.length / JSON.stringify({
+                    v: 2,
+                    c: validColors,
+                    t: colorTags,
+                    r: regionData
+                }).length) * 100).toFixed(1)}%`;
+                setTimeout(() => {
+                    statusEl.textContent = '';
+                    statusEl.title = '';
+                }, 3000);
+            }
+
+        } catch (error) {
+            const statusEl = document.getElementById('urlStatus');
+            if (statusEl) {
+                statusEl.textContent = '⚠ Save error';
+                setTimeout(() => {
+                    statusEl.textContent = '';
+                }, 2000);
+            }
+        }
+    }
+
+    function loadStateFromURL() {
+        const url = new URL(window.location);
+
+        try {
+            // Try new short parameter name first, then fallback to old one
+            let stateParam = url.searchParams.get('s') || url.searchParams.get('state');
+
+            if (!stateParam) return false;
+
+            // Decode state with proper UTF-8 support
+            let stateStr;
+            let decodingMethod = 'unknown';
+            try {
+                // Try base64 with UTF-8 decoding first (newest format)
+                const binaryStr = atob(stateParam);
+                const bytes = new Uint8Array(binaryStr.length);
+                for (let i = 0; i < binaryStr.length; i++) {
+                    bytes[i] = binaryStr.charCodeAt(i);
+                }
+                stateStr = new TextDecoder().decode(bytes);
+                // Test if it's valid JSON
+                JSON.parse(stateStr);
+                decodingMethod = 'base64-utf8';
+                // console.log('Using base64+UTF-8 format');
+            } catch (e) {
+                try {
+                    // Fallback to simple base64 (btoa legacy)
+                    stateStr = atob(stateParam);
+                    // Test if it's valid JSON
+                    JSON.parse(stateStr);
+                    decodingMethod = 'base64-latin1';
+                    // console.log('Using legacy base64 format');
+                } catch (e2) {
+                    try {
+                        // Final fallback to encodeURIComponent format
+                        stateStr = decodeURIComponent(stateParam);
+                        // Test if it's valid JSON
+                        JSON.parse(stateStr);
+                        decodingMethod = 'urlencode';
+                        // console.log('Using URL encoding format');
+                    } catch (e3) {
+                        // console.error('Failed to decode state with all methods');
+                        return false;
+                    }
+                }
+            }
+            const state = JSON.parse(stateStr);
+
+            // Validate structure
+            if (!state || typeof state !== 'object') return false;
+
+            // Check version and handle migration
+            const version = state.v || 1; // Default to v1 for old links
+    
+
+            // Expand optimized data back to full format
+            let expandedColors = [];
+            let expandedTags = {};
+
+            if (version >= 3) {
+                // v3+: ultra-compact format
+                expandedColors = state.c.map(c => '#' + c); // Add # back to hex colors
+
+                // Expand tags: convert from color indices back to hex values
+                Object.keys(state.t).forEach(colorIndex => {
+                    const colorHex = expandedColors[parseInt(colorIndex)];
+                    if (colorHex) {
+                        expandedTags[colorHex] = state.t[colorIndex];
+                    }
+                });
+            } else {
+                // v1-v2: direct format
+                expandedColors = state.c || [];
+                expandedTags = state.t || {};
+            }
+
+            // Load colors with validation
+            if (expandedColors.length > 0) {
+                const validColors = expandedColors.filter(validateHexColor);
+                // console.log('Colors from URL:', expandedColors);
+                // console.log('Valid colors to load:', validColors);
+                if (validColors.length > 0) {
+                    // console.log('Clearing existing colors, had:', defaultColors.length);
+                    defaultColors.length = 0; // Clear existing
+                    defaultColors.push(...validColors.slice(0, 20)); // Limit to 20 colors
+                    // Update current color to first loaded color
+                    currentColor = validColors[0];
+                    // console.log('Loaded colors:', defaultColors);
+                    // console.log('Current color set to:', currentColor);
+                }
+            }
+
+            // Load tags with validation - clear existing tags first
+            // console.log('Tags from URL:', expandedTags);
+            // console.log('Current tags before clearing:', colorTags);
+            colorTags = {}; // Clear all existing tags
+            Object.keys(expandedTags).forEach(color => {
+                if (validateHexColor(color) && validateTag(expandedTags[color])) {
+                    colorTags[color] = expandedTags[color];
+                    // console.log('Loaded tag:', color, '→', expandedTags[color]);
+                }
+            });
+            // console.log('Final loaded tags:', colorTags);
+
+            // Load region data with validation
+            if (state.r) {
+                const allRegions = Array.from(regionsGroup().querySelectorAll('.region'));
+                // console.log('Available regions:', allRegions.length);
+
+                if (version >= 3) {
+                    // v3+: Use sparse array with color indices
+                    // console.log('Region array length:', state.r.length);
+                    state.r.forEach((colorIndex, regionIndex) => {
+                        if (colorIndex !== undefined && regionIndex < allRegions.length) {
+                            const color = expandedColors[colorIndex];
+                            if (color && validateHexColor(color)) {
+                                const region = allRegions[regionIndex];
+
+                                region.setAttribute('data-fill', color);
+                                region.style.fill = color;
+                                // console.log(`Applied color to region ${regionIndex}: ${color}`);
+                            }
+                        }
+                    });
+                } else if (version >= 2) {
+                    // v2: Use region indices with hex colors
+                    // console.log('Region indices to load:', Object.keys(state.r));
+                    Object.keys(state.r).forEach(indexStr => {
+                        const index = parseInt(indexStr);
+                        const color = state.r[indexStr];
+
+                        // Validate index and color
+                        if (index >= 0 && index < allRegions.length && validateHexColor(color)) {
+                            const region = allRegions[index];
+
+                            region.setAttribute('data-fill', color);
+                            region.style.fill = color;
+                            // console.log(`Applied color to region ${index}: ${color}`);
+                        } else {
+                            // console.warn('Invalid region index or color:', index, color);
+                        }
+                    });
+                } else {
+                    // v1: Legacy support - this version relied on region names which are no longer available
+                    // console.warn('Legacy v1 format is no longer supported after removing data-name attributes');
+                }
+            }
+
+
+
+            // Update status indicator on successful load
+            const statusEl = document.getElementById('urlStatus');
+            if (statusEl) {
+                const versionText = version > 1 ? ` v${version}` : ' v1';
+                statusEl.textContent = `✓ Loaded${versionText} (${stateParam.length})`;
+                statusEl.title = `Version: v${version}\nEncoding: ${decodingMethod}\nSize: ${stateParam.length} chars`;
+                setTimeout(() => {
+                    statusEl.textContent = '';
+                    statusEl.title = '';
+                }, 4000);
+            }
+
+            return true;
+        } catch (error) {
+            // console.error('Error loading state from URL:', error);
+            const statusEl = document.getElementById('urlStatus');
+            if (statusEl) {
+                statusEl.textContent = '⚠ Load error from URL';
+                setTimeout(() => {
+                    statusEl.textContent = '';
+                }, 3000);
+            }
+            return false;
+        }
+    }
+
+    function renderPalette() {
+        paletteEl.innerHTML = '';
+        defaultColors.forEach(c => {
+            const colorItem = document.createElement('div');
+            colorItem.className = 'color-item';
+
+            const colorButton = document.createElement('button');
+            colorButton.className = 'sw' + (c === currentColor ? ' active' : '');
+            colorButton.style.background = c;
+            colorButton.title = c;
+            colorButton.onclick = () => {
+                currentColor = c;
+                eyedropperMode = false;
+                updateActive();
+            };
+
+            const tagInput = document.createElement('input');
+            tagInput.type = 'text';
+            tagInput.className = 'color-tag';
+            tagInput.maxLength = 3;
+            tagInput.placeholder = '***';
+            tagInput.value = colorTags[c] || '';
+            tagInput.oninput = (e) => {
+                const value = e.target.value.toUpperCase();
+                colorTags[c] = value;
+                updateRegionLabelsWithTags();
+                saveStateToURL(); // Auto-save when tags change
+            };
+
+            colorItem.appendChild(colorButton);
+            colorItem.appendChild(tagInput);
+            paletteEl.appendChild(colorItem);
+        });
+    }
+
+    function updateActive() {
+        paletteEl.querySelectorAll('.sw').forEach((el, i) => {
+            el.classList.toggle('active', defaultColors[i] === currentColor);
+        });
+    }
+
+    renderPalette();
+
+    document.getElementById('addColor').onclick = () => {
+        const val = document.getElementById('customColor').value;
+        if (!defaultColors.includes(val) && validateHexColor(val)) {
+            if (defaultColors.length >= 20) {
+                defaultColors.pop(); // Remove last color if limit reached
+            }
+            defaultColors.unshift(val);
+            currentColor = val;
+            eyedropperMode = false;
+            renderPalette();
+            saveStateToURL(); // Auto-save when adding color
+        }
+    };
+
+    // -------- Zoom and Pan --------
+    let scale = 1;
+    let translateX = 0;
+    let translateY = 0;
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let startTranslateX = 0;
+    let startTranslateY = 0;
+
+    const canvasWrap = document.getElementById('canvasWrap');
+    const svg = document.getElementById('map');
+
+    // Cache container dimensions to avoid frequent getBoundingRect calls
+    let containerWidth = 0;
+    let containerHeight = 0;
+    let dimensionsCache = null;
+
+    function updateContainerDimensions() {
+        const containerRect = canvasWrap.getBoundingClientRect();
+        containerWidth = containerRect.width - 40; // Account for padding
+        containerHeight = containerRect.height - 40;
+        dimensionsCache = {width: containerWidth, height: containerHeight};
+    }
+
+    function constrainPosition() {
+        if (scale <= 1) {
+            // At scale 1 or less, center the map
+            translateX = 0;
+            translateY = 0;
+            return;
+        }
+
+        if (!dimensionsCache) {
+            updateContainerDimensions();
+        }
+
+        // Calculate how much larger the SVG is compared to container
+        const scaledWidth = containerWidth * scale;
+        const scaledHeight = containerHeight * scale;
+
+        // Calculate maximum translation (how far we can move before SVG goes out of bounds)
+        const maxTranslateX = (scaledWidth - containerWidth) / 2;
+        const maxTranslateY = (scaledHeight - containerHeight) / 2;
+
+        // Constrain translation within bounds
+        if (maxTranslateX > 0) {
+            translateX = Math.max(-maxTranslateX, Math.min(maxTranslateX, translateX));
+        } else {
+            translateX = 0;
+        }
+
+        if (maxTranslateY > 0) {
+            translateY = Math.max(-maxTranslateY, Math.min(maxTranslateY, translateY));
+        } else {
+            translateY = 0;
+        }
+    }
+
+    // Use requestAnimationFrame for smooth updates
+    let animationFrameId = null;
+
+    function updateTransform() {
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+        }
+
+        // Enable hardware acceleration during animation
+        svg.style.willChange = 'transform';
+
+        animationFrameId = requestAnimationFrame(() => {
+            constrainPosition();
+            svg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+
+            // Disable hardware acceleration after animation to improve text quality
+            setTimeout(() => {
+                if (!animationFrameId) { // Only disable if no new animation is pending
+                    svg.style.willChange = 'auto';
+                }
+            }, 100);
+
+            animationFrameId = null;
+        });
+    }
+
+    function zoomIn() {
+        scale = Math.min(scale * 1.2, 5);
+        updateTransform();
+    }
+
+    function zoomOut() {
+        scale = Math.max(scale / 1.2, 1.0); // Can't zoom smaller than original size
+        updateTransform();
+    }
+
+    function resetZoom() {
+        scale = 1;
+        translateX = 0;
+        translateY = 0;
+        updateTransform();
+    }
+
+    // Zoom controls
+    document.getElementById('zoomIn').onclick = zoomIn;
+    document.getElementById('zoomOut').onclick = zoomOut;
+    document.getElementById('zoomReset').onclick = resetZoom;
+
+    // Initialize container dimensions cache and SVG settings
+    updateContainerDimensions();
+    svg.style.willChange = 'auto'; // Start with text-friendly setting
+
+    // Update dimensions on window resize
+    window.addEventListener('resize', () => {
+        updateContainerDimensions();
+    });
+
+    // Mouse wheel zoom with improved throttling
+    let wheelThrottleId = null;
+    canvasWrap.addEventListener('wheel', (e) => {
+        e.preventDefault();
+
+        // Use cached dimensions instead of getBoundingClientRect for mouse position calculation
+        if (!dimensionsCache) {
+            updateContainerDimensions();
+        }
+
+        const rect = canvasWrap.getBoundingClientRect();
+        const centerX = (containerWidth + 40) / 2; // Use cached width + padding
+        const centerY = (containerHeight + 40) / 2; // Use cached height + padding
+
+        const oldScale = scale;
+        scale = e.deltaY > 0 ? Math.max(scale / 1.1, 1.0) : Math.min(scale * 1.1, 5); // Can't zoom smaller than original
+
+        // Zoom to mouse position
+        const scaleChange = scale / oldScale;
+        const mouseX = e.clientX - rect.left - centerX;
+        const mouseY = e.clientY - rect.top - centerY;
+
+        translateX = mouseX - scaleChange * (mouseX - translateX);
+        translateY = mouseY - scaleChange * (mouseY - translateY);
+
+        // Throttle transform updates using requestAnimationFrame for smoother performance
+        if (wheelThrottleId) {
+            cancelAnimationFrame(wheelThrottleId);
+        }
+
+        wheelThrottleId = requestAnimationFrame(() => {
+            updateTransform();
+            wheelThrottleId = null;
+        });
+    });
+
+    // Mouse drag
+    let isMouseDown = false;
+    let hasMoved = false;
+    let mouseDownTarget = null;
+    const dragThreshold = 5; // pixels
+
+    canvasWrap.addEventListener('mousedown', (e) => {
+        isMouseDown = true;
+        hasMoved = false;
+        mouseDownTarget = e.target.closest('.region'); // Save the region target
+        startX = e.clientX;
+        startY = e.clientY;
+        startTranslateX = translateX;
+        startTranslateY = translateY;
+        e.preventDefault();
+    });
+
+    // Throttle drag updates using requestAnimationFrame
+    let dragUpdateId = null;
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isMouseDown) return;
+
+        const deltaX = e.clientX - startX;
+        const deltaY = e.clientY - startY;
+        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+        if (distance > dragThreshold && !hasMoved) {
+            // Start dragging after threshold
+            hasMoved = true;
+            isDragging = true;
+            canvasWrap.classList.add('panning');
+        }
+
+        if (isDragging) {
+            translateX = startTranslateX + deltaX;
+            translateY = startTranslateY + deltaY;
+
+            // Throttle drag updates for smoother performance
+            if (dragUpdateId) {
+                cancelAnimationFrame(dragUpdateId);
+            }
+
+            dragUpdateId = requestAnimationFrame(() => {
+                updateTransform();
+                dragUpdateId = null;
+            });
+        }
+    });
+
+    document.addEventListener('mouseup', (e) => {
+        if (isMouseDown && !hasMoved && mouseDownTarget) {
+            // This was a click on a region, not a drag
+            if (e.button === 2) {
+                // Right-click for clearing paint (regardless of mode)
+                handleRegionPainting(mouseDownTarget, e);
+                e.preventDefault();
+                e.stopPropagation();
+            } else if (currentMode === 'paint') {
+                // Left-click in paint mode
+                handleRegionPainting(mouseDownTarget, e);
+                e.preventDefault();
+                e.stopPropagation();
+            } else if (currentMode === 'info') {
+                // Left-click in info mode
+                if (mouseDownTarget.classList.contains('region')) {
+                    showRegionModal(mouseDownTarget);
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }
+        }
+
+        isMouseDown = false;
+        isDragging = false;
+        hasMoved = false;
+        mouseDownTarget = null;
+        canvasWrap.classList.remove('panning');
+    });
+
+    // Handle region painting (only when Shift is pressed)
+    function handleRegionPainting(el, e) {
+        const elColor = el.getAttribute('data-fill');
+        const isRight = e.button === 2;
+        if (isRight || elColor === currentColor) {
+            el.removeAttribute('data-fill');
+            el.style.fill = '';
+        } else {
+            el.setAttribute('data-fill', currentColor);
+            el.style.fill = currentColor;
+        }
+
+        // Update region labels to reflect color tags
+        updateRegionLabelsWithTags();
+
+        // Auto-save state to URL
+        saveStateToURL();
+
+        // Close mobile menu when user interacts with map
+        if (window.innerWidth <= 768) {
+            closeMenu();
+        }
+    }
+
+    // Touch support
+    let lastTouchDistance = 0;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isTouchMoving = false;
+    let longPressTimer = null;
+    let longPressTarget = null;
+    const longPressDelay = 600; // 600ms for long press
+
+    canvasWrap.addEventListener('touchstart', (e) => {
+        isTouchMoving = false;
+
+        if (e.touches.length === 1) {
+            // Single touch - prepare for panning or click
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            startTranslateX = translateX;
+            startTranslateY = translateY;
+
+            // Start long press timer for painting
+            const target = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
+            const region = target?.closest('.region');
+            if (region) {
+                longPressTarget = region;
+                longPressTimer = setTimeout(() => {
+                    if (longPressTarget && !isTouchMoving) {
+                        // Long press detected - paint the region
+                        handleRegionPainting(longPressTarget, {button: 0});
+                        // Add haptic feedback if available
+                        if (navigator.vibrate) {
+                            navigator.vibrate(50);
+                        }
+                    }
+                    longPressTimer = null;
+                    longPressTarget = null;
+                }, longPressDelay);
+            }
+        } else if (e.touches.length === 2) {
+            // Two fingers - start pinch zoom
+            isDragging = false;
+            canvasWrap.classList.remove('panning');
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            lastTouchDistance = Math.sqrt(
+                Math.pow(touch2.clientX - touch1.clientX, 2) +
+                Math.pow(touch2.clientY - touch1.clientY, 2)
+            );
+        }
+        e.preventDefault();
+    });
+
+    canvasWrap.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1) {
+            // Single touch - pan
+            const deltaX = e.touches[0].clientX - touchStartX;
+            const deltaY = e.touches[0].clientY - touchStartY;
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+            if (distance > dragThreshold && !isTouchMoving) {
+                isTouchMoving = true;
+                isDragging = true;
+                canvasWrap.classList.add('panning');
+
+                // Cancel long press if user starts moving
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                    longPressTarget = null;
+                }
+            }
+
+            if (isDragging) {
+                translateX = startTranslateX + deltaX;
+                translateY = startTranslateY + deltaY;
+                updateTransform();
+            }
+        } else if (e.touches.length === 2) {
+            // Two fingers - pinch zoom
+            isTouchMoving = true;
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            const currentDistance = Math.sqrt(
+                Math.pow(touch2.clientX - touch1.clientX, 2) +
+                Math.pow(touch2.clientY - touch1.clientY, 2)
+            );
+
+            if (lastTouchDistance > 0) {
+                const scaleChange = currentDistance / lastTouchDistance;
+                scale = Math.max(Math.min(scale * scaleChange, 5), 1.0); // Can't zoom smaller than original
+                updateTransform();
+            }
+            lastTouchDistance = currentDistance;
+        }
+        e.preventDefault();
+    });
+
+    canvasWrap.addEventListener('touchend', (e) => {
+        if (e.touches.length === 0) {
+            // Cancel any pending long press
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+                longPressTarget = null;
+            }
+
+            // Handle tap if no movement occurred
+            if (!isTouchMoving) {
+                const touch = e.changedTouches[0];
+                const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                const region = target?.closest('.region');
+                if (region) {
+                    // Tap behavior depends on current mode
+                    if (currentMode === 'info' && region.classList.contains('region')) {
+                        showRegionModal(region);
+                        e.preventDefault();
+                        e.stopPropagation();
+                    } else if (currentMode === 'paint') {
+                        handleRegionPainting(region, {button: 0});
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                    // Long press always paints (handled in touchstart timer)
+                }
+            }
+
+            isDragging = false;
+            canvasWrap.classList.remove('panning');
+            lastTouchDistance = 0;
+            isTouchMoving = false;
+        }
+        e.preventDefault();
+    });
+
+    // Disable context menu over SVG
+    svg.oncontextmenu = e => {
+        if (e.target.closest('svg')) e.preventDefault();
+    };
+
+    // Initialize constraints
+    updateTransform();
+
+    // -------- Mobile Menu (declare early for use in other functions) --------
+    const burgerMenu = document.getElementById('burgerMenu');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+
+    function closeMenu() {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('show');
+    }
+
+    function toggleMenu() {
+        const isOpen = sidebar.classList.contains('open');
+
+        if (isOpen) {
+            closeMenu();
+        } else {
+            sidebar.classList.add('open');
+            overlay.classList.add('show');
+        }
+    }
+
+    burgerMenu.addEventListener('click', toggleMenu);
+    overlay.addEventListener('click', closeMenu);
+
+    // Close menu on escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeMenu();
+        }
+    });
+
+    // Close menu when window resizes to desktop
+    window.addEventListener('resize', () => {
+        if (window.innerWidth > 768) {
+            closeMenu();
+        }
+    });
+
+    // -------- Mode System --------
+    let currentMode = 'info'; // 'paint' or 'info'
+    const paintModeBtn = document.getElementById('paintMode');
+    const infoModeBtn = document.getElementById('infoMode');
+
+    function setMode(mode) {
+        currentMode = mode;
+
+        // Update button states
+        paintModeBtn.classList.toggle('active', mode === 'paint');
+        infoModeBtn.classList.toggle('active', mode === 'info');
+
+        // Update cursor style via CSS class
+        canvasWrap.classList.toggle('info-mode', mode === 'info');
+    }
+
+    // Mode button events
+    paintModeBtn.addEventListener('click', () => setMode('paint'));
+    infoModeBtn.addEventListener('click', () => setMode('info'));
+
+    // -------- Region Information System --------
+    const regionModal = document.getElementById('regionModal');
+    const regionModalTitle = document.getElementById('regionModalTitle');
+    const regionModalDescription = document.getElementById('regionModalDescription');
+    const regionModalClose = document.getElementById('regionModalClose');
+
+
+    // Show region labels (static HTML elements)
+    function addRegionLabels() {
+        // console.time('addRegionLabels');
+
+        const textsGroup = document.getElementById('region-texts');
+        if (!textsGroup) {
+            // console.warn('Static region-texts group not found in HTML!');
+            return;
+        }
+
+        // Simply show the static group
+        textsGroup.style.display = '';
+
+        // Update labels with current colors and tags
+        updateRegionLabelsWithTags();
+
+        // console.log('✓ Using static HTML region labels for all 111 regions (no dynamic positioning)');
+        // console.timeEnd('addRegionLabels');
+
+        // Show status that static labels are being used
+        const statusEl = document.getElementById('urlStatus');
+        if (statusEl) {
+            statusEl.textContent = `✓ Static positions for 111 regions`;
+            setTimeout(() => {
+                statusEl.textContent = '';
+            }, 2000);
+        }
+    }
+
+    // Hide static region labels
+    function removeRegionLabels() {
+        const textsGroup = document.getElementById('region-texts');
+        if (textsGroup) {
+            textsGroup.style.display = 'none';
+        }
+    }
+
+
+
+    // Update content of static region labels using region indices
+    function updateRegionLabelsWithTags() {
+        // console.time('updateRegionLabelsWithTags');
+
+        const textsGroup = document.getElementById('region-texts');
+        if (!textsGroup) {
+            // console.warn('Static region-texts group not found!');
+            return;
+        }
+
+        const textElements = textsGroup.querySelectorAll('.region-text[data-region-index]');
+        const regions = document.querySelectorAll('.region');
+
+        // console.log(`✓ Fast updating ${textElements.length} static labels (preserving original text)`);
+
+        textElements.forEach((textElement) => {
+            const regionIndex = parseInt(textElement.getAttribute('data-region-index'));
+            const region = regions[regionIndex];
+
+            if (region) {
+                const regionColor = region.getAttribute('data-fill');
+                
+                // Get original text content or set it if missing
+                let originalText = textElement.getAttribute('data-original-text');
+                if (!originalText) {
+                    // Store original text on first run
+                    originalText = textElement.textContent.trim();
+                    textElement.setAttribute('data-original-text', originalText);
+                }
+                
+                let displayText = originalText;
+
+                // Add color tag if exists
+                if (regionColor && colorTags[regionColor]) {
+                    displayText = `${originalText} [${colorTags[regionColor]}]`;
+                }
+
+                textElement.textContent = displayText;
+            }
+        });
+
+        // console.timeEnd('updateRegionLabelsWithTags');
+    }
+
+
+    // Tooltip functionality removed - using mode system instead
+
+    // Show region modal
+    function showRegionModal(region) {
+        const description = region.getAttribute('data-description');
+        const allRegions = Array.from(document.querySelectorAll('.region'));
+        const regionIndex = allRegions.indexOf(region);
+        const name = `Region ${regionIndex}`;
+
+        regionModalTitle.textContent = name;
+
+        // Process description with line breaks
+        if (description) {
+            // Escape HTML to prevent XSS, then convert \n to <br>
+            const safeDescription = description
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#x27;')
+                .replace(/\n/g, '<br>');
+            regionModalDescription.innerHTML = safeDescription;
+        } else {
+            regionModalDescription.textContent = 'Description not available';
+        }
+
+        regionModal.classList.add('show');
+    }
+
+    // Hide region modal
+    function hideRegionModal() {
+        regionModal.classList.remove('show');
+    }
+
+    // Add event listeners for region interaction
+    function setupRegionEvents() {
+        // Event handling is now done through mouseup/touchend events
+        // This function is kept for potential future enhancements
+    }
+
+    // Modal close events
+    regionModalClose.addEventListener('click', hideRegionModal);
+    regionModal.addEventListener('click', (e) => {
+        if (e.target === regionModal) hideRegionModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') hideRegionModal();
+    });
+
+    // Initialize region text positions
+    function initializeRegionTextPositions() {
+        // console.log('Initializing region text positions...');
+        const regions = document.querySelectorAll('.region');
+        const textElements = document.querySelectorAll('.region-text[data-region-index]');
+        
+        textElements.forEach((textElement) => {
+            const regionIndex = parseInt(textElement.getAttribute('data-region-index'));
+            const region = regions[regionIndex];
+            
+            if (region && textElement.getAttribute('x') === '') {
+                // Calculate center of region using bounding box
+                const bbox = region.getBBox();
+                const centerX = bbox.x + bbox.width / 2;
+                const centerY = bbox.y + bbox.height / 2;
+                
+                // Set text position
+                textElement.setAttribute('x', centerX.toFixed(1));
+                textElement.setAttribute('y', centerY.toFixed(1));
+                
+                // console.log(`Set position for region ${regionIndex}: (${centerX.toFixed(1)}, ${centerY.toFixed(1)})`);
+            }
+        });
+        
+        // console.log('Region text positions initialized.');
+    }
+
+    // Initialize region system after page load
+    document.addEventListener('DOMContentLoaded', () => {
+        // Try to load state from URL first
+        const stateLoaded = loadStateFromURL();
+        if (stateLoaded) {
+            // If state was loaded, re-render palette with loaded colors/tags
+            renderPalette();
+            updateActive(); // Update active color selection
+        }
+
+
+
+        setMode('info'); // Initialize with info mode first
+        initializeRegionTextPositions(); // Set x,y coordinates for text elements
+        addRegionLabels();
+        setupRegionEvents();
+
+        // Always update region labels with tags after everything is loaded
+        updateRegionLabelsWithTags();
+
+        // Force a save to ensure URL is up to date
+        if (!stateLoaded) {
+            saveStateToURL(true);
+        }
+    });
+
+    // -------- Tools --------
+    document.getElementById('reset').onclick = () => {
+        regionsGroup().querySelectorAll('.region').forEach(el => {
+            el.removeAttribute('data-fill');
+            el.style.fill = '';
+        });
+        updateRegionLabelsWithTags(); // Update labels after clearing colors
+        saveStateToURL(); // Auto-save after reset
+    };
+
+    // Function to shorten URL using TinyURL
+    async function shortenUrl(longUrl) {
+        try {
+            // console.log('Attempting to shorten URL via TinyURL...');
+            const apiUrl = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
+            // console.log('TinyURL API request:', apiUrl);
+            
+            const response = await fetch(apiUrl);
+            // console.log('TinyURL response status:', response.status);
+            
+            if (response.ok) {
+                const shortUrl = await response.text();
+                // console.log('TinyURL response text:', shortUrl);
+                
+                if (shortUrl.startsWith('https://tinyurl.com/') || shortUrl.startsWith('http://tinyurl.com/')) {
+                    // console.log('✓ TinyURL success:', shortUrl);
+                    return shortUrl.trim();
+                } else {
+                    // console.warn('TinyURL returned unexpected format:', shortUrl);
+                }
+            } else {
+                // console.warn('TinyURL HTTP error:', response.status, response.statusText);
+            }
+        } catch (error) {
+            // console.warn('TinyURL request failed:', error);
+        }
+        
+        // Fallback to original URL
+        // console.log('Using original URL as fallback');
+        return longUrl;
+    }
+
+    // Share state button with URL shortening
+    document.getElementById('shareState').onclick = async () => {
+        // console.log('Share button clicked - saving state...');
+        
+        // Show loading status
+        const statusEl = document.getElementById('urlStatus');
+        if (statusEl) {
+            statusEl.textContent = '🔗 Creating short link...';
+        }
+        
+        saveStateToURL(true); // Ensure current state is saved immediately
+        
+        const longUrl = window.location.href;
+        // console.log('Original URL length:', longUrl.length);
+        
+        // Get shortened URL (this will fallback to original URL if TinyURL fails)
+        const shortUrl = await shortenUrl(longUrl);
+        // console.log('URL to share:', shortUrl);
+        
+        // Update status
+        if (statusEl) {
+            if (shortUrl !== longUrl) {
+                statusEl.textContent = `✓ Short link created (saved ${longUrl.length - shortUrl.length} chars)`;
+            } else {
+                statusEl.textContent = '⚠️ Using original link (TinyURL unavailable)';
+            }
+            setTimeout(() => {
+                statusEl.textContent = '';
+            }, 5000);
+        }
+
+        try {
+            if (navigator.share) {
+                // Use native share API if available
+                await navigator.share({
+                    title: 'Tiles Survive! Map',
+                    text: 'Check out this map configuration',
+                    url: shortUrl
+                });
+                // console.log('Shared via native API:', shortUrl);
+            } else {
+                // Fallback: copy to clipboard
+                await navigator.clipboard.writeText(shortUrl);
+                // console.log('URL copied to clipboard:', shortUrl);
+                
+                const isShortened = shortUrl !== longUrl;
+                const message = isShortened 
+                    ? `Short link copied to clipboard! 🔗\n\nLink length: ${shortUrl.length} chars\nSaved: ${longUrl.length - shortUrl.length} chars`
+                    : `Link copied to clipboard! 📋\n\nLink length: ${shortUrl.length} chars\n(TinyURL unavailable, using full link)`;
+                
+                alert(message);
+            }
+        } catch (error) {
+            // Final fallback: manual copy prompt with the correct URL
+            // console.error('Share/clipboard failed:', error);
+            // console.log('Fallback - showing prompt with URL:', shortUrl);
+            
+            const isShortened = shortUrl !== longUrl;
+            const promptText = isShortened 
+                ? `Failed to auto-copy short link. Please copy manually:`
+                : `Failed to auto-copy link. Please copy manually:`;
+            
+            prompt(promptText, shortUrl);
+            
+            if (statusEl) {
+                statusEl.textContent = isShortened 
+                    ? '⚠️ Short link created but requires manual copy'
+                    : '⚠️ Link ready but requires manual copy';
+                setTimeout(() => {
+                    statusEl.textContent = '';
+                }, 4000);
+            }
+        }
+    };
+
+    document.getElementById('exportPNG').onclick = async () => {
+        try {
+            // console.log('Starting PNG export...');
+            
+            // Get the SVG element
+            const svgElement = document.querySelector('svg');
+            if (!svgElement) {
+                alert('SVG element not found!');
+                return;
+            }
+
+            // Get original viewBox dimensions (63x63)
+            const viewBox = svgElement.viewBox.baseVal;
+            const originalWidth = viewBox.width;
+            const originalHeight = viewBox.height;
+            
+            // console.log(`Original SVG dimensions: ${originalWidth}x${originalHeight}`);
+            
+            // Set target canvas size (high resolution)
+            const targetSize = 2000; // Target size in pixels
+            const scale = targetSize / Math.max(originalWidth, originalHeight);
+            
+            const canvasWidth = Math.ceil(originalWidth * scale);
+            const canvasHeight = Math.ceil(originalHeight * scale);
+            
+            // console.log(`Export dimensions: ${canvasWidth}x${canvasHeight} (scale: ${scale.toFixed(1)}x)`);
+
+            // Clone and prepare SVG for export
+            const svgClone = svgElement.cloneNode(true);
+            
+            // Set explicit dimensions while preserving viewBox
+            svgClone.setAttribute('width', canvasWidth);
+            svgClone.setAttribute('height', canvasHeight);
+            svgClone.setAttribute('viewBox', `0 0 ${originalWidth} ${originalHeight}`);
+            
+            // Fix text sizes for proper export
+            const textElements = svgClone.querySelectorAll('.region-text');
+            textElements.forEach(text => {
+                // Scale text size appropriately for export
+                text.setAttribute('font-size', '0.8'); // Slightly larger than original 0.7px
+                text.setAttribute('font-family', 'system-ui, Arial, sans-serif');
+                text.setAttribute('fill', '#e8eef7');
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('dominant-baseline', 'central');
+            });
+
+            // Ensure regions have proper styling
+            const regionElements = svgClone.querySelectorAll('.region');
+            regionElements.forEach(region => {
+                if (!region.getAttribute('fill') && !region.style.fill) {
+                    region.setAttribute('fill', '#18222e'); // Default region color
+                }
+                region.setAttribute('stroke', '#2b3a4d');
+                region.setAttribute('stroke-width', '0.3');
+            });
+
+            // Create a complete SVG string with embedded CSS
+            const svgString = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="${canvasWidth}" height="${canvasHeight}" viewBox="0 0 ${originalWidth} ${originalHeight}">
+                    <defs>
+                        <style>
+                            .region {
+                                fill: #18222e;
+                                stroke: #2b3a4d;
+                                stroke-width: 0.3;
+                            }
+                            .region-text {
+                                font-family: system-ui, Arial, sans-serif;
+                                font-size: 0.8px;
+                                font-weight: 600;
+                                fill: #e8eef7;
+                                text-anchor: middle;
+                                dominant-baseline: central;
+                            }
+                        </style>
+                    </defs>
+                    ${svgClone.innerHTML}
+                </svg>
+            `;
+
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const svgUrl = URL.createObjectURL(svgBlob);
+
+            // Create and load image
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            
+            await new Promise((resolve, reject) => {
+                img.onload = () => {
+                    // console.log(`Image loaded: ${img.naturalWidth}x${img.naturalHeight}`);
+                    resolve();
+                };
+                img.onerror = (e) => {
+                    // console.error('Image failed to load:', e);
+                    reject(new Error('Failed to load SVG as image'));
+                };
+                img.src = svgUrl;
+            });
+
+            // Create canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            
+            const ctx = canvas.getContext('2d');
+            
+            // Set high-quality rendering
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            
+            // Fill with background color (same as in CSS)
+            ctx.fillStyle = '#091017';
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+            
+            // Draw the SVG image
+            ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+
+            // Export as PNG
+            canvas.toBlob(blob => {
+                if (blob) {
+                    const pngUrl = URL.createObjectURL(blob);
+                    download(pngUrl, `tiles-map-${Date.now()}.png`);
+                    URL.revokeObjectURL(pngUrl);
+                    // console.log(`PNG exported successfully: ${canvasWidth}x${canvasHeight}px`);
+                } else {
+                    alert('Failed to create PNG blob');
+                }
+                URL.revokeObjectURL(svgUrl);
+            }, 'image/png', 0.95);
+
+        } catch (error) {
+            // console.error('PNG export failed:', error);
+            alert('PNG export failed: ' + error.message);
+        }
+    };
+
+    function download(url, name) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+</script>
+</body>
+</html>
