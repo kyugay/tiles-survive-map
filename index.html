@@ -497,10 +497,12 @@
             text-rendering: optimizeLegibility;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
-            /* Prevent hardware acceleration artifacts */
+            /* Prevent hardware acceleration artifacts and smooth opacity transitions */
             will-change: auto;
             backface-visibility: visible;
             transform: translateZ(0); /* Force own layer but keep crisp */
+            transition: opacity 0.1s ease; /* Smooth opacity transitions */
+            opacity: 1; /* Default opacity */
         }
     </style>
 </head>
@@ -600,6 +602,8 @@
                             text-rendering: optimizeLegibility;
                             will-change: auto;
                             backface-visibility: visible;
+                            transition: opacity 0.1s ease;
+                            opacity: 1;
                         }
                     </style>
                 </defs>
@@ -1404,9 +1408,10 @@
 
     function renderPalette() {
         paletteEl.innerHTML = '';
-        defaultColors.forEach(c => {
+        defaultColors.forEach((c, index) => {
             const colorItem = document.createElement('div');
             colorItem.className = 'color-item';
+            colorItem.style.position = 'relative';
 
             const colorButton = document.createElement('button');
             colorButton.className = 'sw' + (c === currentColor ? ' active' : '');
@@ -1417,6 +1422,48 @@
                 eyedropperMode = false;
                 updateActive();
             };
+
+            // Add delete button (only show if there are more than 1 colors)
+            if (defaultColors.length > 1) {
+                const deleteBtn = document.createElement('button');
+                deleteBtn.innerHTML = '×';
+                deleteBtn.className = 'color-delete';
+                deleteBtn.title = 'Delete color';
+                deleteBtn.style.cssText = `
+                    position: absolute;
+                    top: -4px;
+                    right: -4px;
+                    width: 16px;
+                    height: 16px;
+                    border-radius: 50%;
+                    background: #E74C3C;
+                    border: 1px solid var(--border);
+                    color: white;
+                    font-size: 10px;
+                    font-weight: bold;
+                    cursor: pointer;
+                    display: none;
+                    padding: 0;
+                    line-height: 1;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 5;
+                `;
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    removeColor(c);
+                };
+
+                // Show delete button on hover
+                colorItem.onmouseenter = () => {
+                    if (defaultColors.length > 1) deleteBtn.style.display = 'flex';
+                };
+                colorItem.onmouseleave = () => {
+                    deleteBtn.style.display = 'none';
+                };
+
+                colorItem.appendChild(deleteBtn);
+            }
 
             const tagInput = document.createElement('input');
             tagInput.type = 'text';
@@ -1443,15 +1490,49 @@
         });
     }
 
+    function removeColor(colorToRemove) {
+        if (defaultColors.length <= 1) {
+            return; // Don't allow removing the last color
+        }
+
+        // Remove color from defaultColors array
+        const colorIndex = defaultColors.indexOf(colorToRemove);
+        if (colorIndex === -1) return;
+        
+        defaultColors.splice(colorIndex, 1);
+        
+        // Remove color tag
+        delete colorTags[colorToRemove];
+        
+        // Clear this color from all painted regions
+        const allRegions = document.querySelectorAll('.region');
+        allRegions.forEach(region => {
+            if (region.getAttribute('data-fill') === colorToRemove) {
+                region.removeAttribute('data-fill');
+                region.style.fill = '';
+            }
+        });
+        
+        // If this was the current color, select the first available color
+        if (currentColor === colorToRemove) {
+            currentColor = defaultColors[0];
+        }
+        
+        // Update UI
+        renderPalette();
+        updateRegionLabelsWithTags();
+        saveStateToURL();
+    }
+
     renderPalette();
 
     document.getElementById('addColor').onclick = () => {
         const val = document.getElementById('customColor').value;
         if (!defaultColors.includes(val) && validateHexColor(val)) {
             if (defaultColors.length >= 20) {
-                defaultColors.pop(); // Remove last color if limit reached
+                defaultColors.shift(); // Remove first color if limit reached
             }
-            defaultColors.unshift(val);
+            defaultColors.push(val); // Add to the end instead of beginning
             currentColor = val;
             eyedropperMode = false;
             renderPalette();
@@ -1521,26 +1602,45 @@
     // Use requestAnimationFrame for smooth updates
     let animationFrameId = null;
 
+    // Track animation state to prevent flickering
+    let isAnimating = false;
+    let animationEndTimer = null;
+
     function updateTransform() {
         if (animationFrameId) {
             cancelAnimationFrame(animationFrameId);
         }
 
-        // Enable hardware acceleration during animation
-        svg.style.willChange = 'transform';
+        // Only enable hardware acceleration if not already enabled
+        if (!isAnimating) {
+            isAnimating = true;
+            svg.style.willChange = 'transform';
+            // Temporarily hide text during animation to prevent flickering
+            const textElements = document.querySelectorAll('.region-text');
+            textElements.forEach(el => el.style.opacity = '0.7');
+        }
+
+        // Clear previous timer
+        if (animationEndTimer) {
+            clearTimeout(animationEndTimer);
+        }
 
         animationFrameId = requestAnimationFrame(() => {
             constrainPosition();
             svg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
-
-            // Disable hardware acceleration after animation to improve text quality
-            setTimeout(() => {
-                if (!animationFrameId) { // Only disable if no new animation is pending
-                    svg.style.willChange = 'auto';
-                }
-            }, 100);
-
             animationFrameId = null;
+
+            // Delay showing text until animation is truly finished
+            animationEndTimer = setTimeout(() => {
+                if (!animationFrameId && isAnimating) {
+                    isAnimating = false;
+                    svg.style.willChange = 'auto';
+                    // Restore text visibility
+                    const textElements = document.querySelectorAll('.region-text');
+                    textElements.forEach(el => el.style.opacity = '1');
+                }
+                animationEndTimer = null;
+            }, 150); // Slightly longer delay to ensure smooth animation
         });
     }
 
