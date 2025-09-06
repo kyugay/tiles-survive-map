@@ -370,24 +370,29 @@
             user-select: none; /* Prevent text selection on mobile */
             -webkit-user-select: none;
             -webkit-touch-callout: none; /* Disable iOS callout */
-            /* Fix text rendering */
+            /* Optimized rendering for smooth transforms */
             shape-rendering: geometricPrecision;
             text-rendering: geometricPrecision;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            /* Stable hardware acceleration */
+            will-change: transform;
+            backface-visibility: hidden;
+            transform: translateZ(0);
         }
 
-        /* Apply hardware acceleration only to region shapes, not text */
+        /* Stable hardware acceleration for regions */
         #regions {
             backface-visibility: hidden;
             transform: translateZ(0); /* Force hardware layer */
+            will-change: auto; /* Let browser optimize */
         }
 
-        /* Ensure text elements stay crisp */
+        /* Stable text rendering */
         #region-texts {
             will-change: auto; /* Disable hardware acceleration for text */
             backface-visibility: visible;
-            transform: none;
+            transform: translateZ(0); /* Keep on same layer as regions */
         }
 
         .zoom-controls {
@@ -492,17 +497,16 @@
             pointer-events: none;
             user-select: none;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
-            /* Ensure crisp text rendering */
+            /* Ensure crisp text rendering without flickering */
             shape-rendering: crispEdges;
             text-rendering: optimizeLegibility;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
-            /* Prevent hardware acceleration artifacts and smooth opacity transitions */
+            /* Stable rendering during transforms */
             will-change: auto;
             backface-visibility: visible;
-            transform: translateZ(0); /* Force own layer but keep crisp */
-            transition: opacity 0.1s ease; /* Smooth opacity transitions */
-            opacity: 1; /* Default opacity */
+            transform: translateZ(0);
+            opacity: 1;
         }
     </style>
 </head>
@@ -581,7 +585,10 @@
                             stroke: #2b3a4d;
                             stroke-width: 0.3;
                             cursor: pointer;
-                            transition: filter .12s ease
+                            transition: filter .12s ease;
+                            /* Prevent disappearing during transforms */
+                            shape-rendering: geometricPrecision;
+                            will-change: auto;
                         }
 
                         .region:hover {
@@ -597,12 +604,11 @@
                             dominant-baseline: central;
                             pointer-events: none;
                             user-select: none;
-                            /* Static positioned labels - no dynamic calculation needed */
+                            /* Stable text rendering during transforms */
                             shape-rendering: crispEdges;
                             text-rendering: optimizeLegibility;
                             will-change: auto;
                             backface-visibility: visible;
-                            transition: opacity 0.1s ease;
                             opacity: 1;
                         }
                     </style>
@@ -1599,49 +1605,37 @@
         }
     }
 
-    // Use requestAnimationFrame for smooth updates
-    let animationFrameId = null;
+    // Performance tracking for smooth updates
 
-    // Track animation state to prevent flickering
-    let isAnimating = false;
-    let animationEndTimer = null;
+    // Optimized transform system
+    let transformPending = false;
+    let lastTransformTime = 0;
+    const TRANSFORM_THROTTLE = 16; // ~60fps
 
-    function updateTransform() {
-        if (animationFrameId) {
-            cancelAnimationFrame(animationFrameId);
+    function updateTransform(immediate = false) {
+        const now = performance.now();
+        
+        if (!immediate && transformPending) {
+            return; // Already scheduled
         }
 
-        // Only enable hardware acceleration if not already enabled
-        if (!isAnimating) {
-            isAnimating = true;
-            svg.style.willChange = 'transform';
-            // Temporarily hide text during animation to prevent flickering
-            const textElements = document.querySelectorAll('.region-text');
-            textElements.forEach(el => el.style.opacity = '0.7');
+        if (!immediate && (now - lastTransformTime) < TRANSFORM_THROTTLE) {
+            if (!transformPending) {
+                transformPending = true;
+                requestAnimationFrame(() => {
+                    updateTransform(true);
+                });
+            }
+            return;
         }
 
-        // Clear previous timer
-        if (animationEndTimer) {
-            clearTimeout(animationEndTimer);
-        }
-
-        animationFrameId = requestAnimationFrame(() => {
-            constrainPosition();
-            svg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
-            animationFrameId = null;
-
-            // Delay showing text until animation is truly finished
-            animationEndTimer = setTimeout(() => {
-                if (!animationFrameId && isAnimating) {
-                    isAnimating = false;
-                    svg.style.willChange = 'auto';
-                    // Restore text visibility
-                    const textElements = document.querySelectorAll('.region-text');
-                    textElements.forEach(el => el.style.opacity = '1');
-                }
-                animationEndTimer = null;
-            }, 150); // Slightly longer delay to ensure smooth animation
-        });
+        transformPending = false;
+        lastTransformTime = now;
+        
+        constrainPosition();
+        
+        // Apply transform immediately without complex animation state management
+        svg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
     }
 
     function zoomIn() {
@@ -1668,15 +1662,13 @@
 
     // Initialize container dimensions cache and SVG settings
     updateContainerDimensions();
-    svg.style.willChange = 'auto'; // Start with text-friendly setting
 
     // Update dimensions on window resize
     window.addEventListener('resize', () => {
         updateContainerDimensions();
     });
 
-    // Mouse wheel zoom with improved throttling
-    let wheelThrottleId = null;
+    // Mouse wheel zoom with optimized throttling
     canvasWrap.addEventListener('wheel', (e) => {
         e.preventDefault();
 
@@ -1700,15 +1692,8 @@
         translateX = mouseX - scaleChange * (mouseX - translateX);
         translateY = mouseY - scaleChange * (mouseY - translateY);
 
-        // Throttle transform updates using requestAnimationFrame for smoother performance
-        if (wheelThrottleId) {
-            cancelAnimationFrame(wheelThrottleId);
-        }
-
-        wheelThrottleId = requestAnimationFrame(() => {
-            updateTransform();
-            wheelThrottleId = null;
-        });
+        // Use optimized transform update
+        updateTransform();
     });
 
     // Mouse drag
@@ -1728,9 +1713,6 @@
         e.preventDefault();
     });
 
-    // Throttle drag updates using requestAnimationFrame
-    let dragUpdateId = null;
-
     document.addEventListener('mousemove', (e) => {
         if (!isMouseDown) return;
 
@@ -1749,15 +1731,8 @@
             translateX = startTranslateX + deltaX;
             translateY = startTranslateY + deltaY;
 
-            // Throttle drag updates for smoother performance
-            if (dragUpdateId) {
-                cancelAnimationFrame(dragUpdateId);
-            }
-
-            dragUpdateId = requestAnimationFrame(() => {
-                updateTransform();
-                dragUpdateId = null;
-            });
+            // Use optimized transform update with built-in throttling
+            updateTransform();
         }
     });
 
@@ -1889,6 +1864,7 @@
             if (isDragging) {
                 translateX = startTranslateX + deltaX;
                 translateY = startTranslateY + deltaY;
+                // Use optimized transform update
                 updateTransform();
             }
         } else if (e.touches.length === 2) {
@@ -1904,6 +1880,7 @@
             if (lastTouchDistance > 0) {
                 const scaleChange = currentDistance / lastTouchDistance;
                 scale = Math.max(Math.min(scale * scaleChange, 5), 1.0); // Can't zoom smaller than original
+                // Use optimized transform update
                 updateTransform();
             }
             lastTouchDistance = currentDistance;
