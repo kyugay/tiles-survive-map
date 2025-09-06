@@ -99,7 +99,7 @@
             box-shadow: 0 0 0 2px var(--accent);
         }
 
-        /* Mobile styles */
+        /* Mobile styles with performance optimizations */
         @media (max-width: 768px) {
             .app {
                 grid-template-columns: 1fr;
@@ -117,6 +117,24 @@
                 border-right: none;
                 box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
                 padding-top: 70px; /* Add space for burger menu */
+            }
+
+            /* Mobile-specific SVG optimizations */
+            svg {
+                /* More aggressive hardware acceleration for mobile */
+                transform: translateZ(0) scale(1);
+                will-change: transform;
+            }
+
+            /* Disable expensive effects on mobile during transforms */
+            .canvasWrap.panning .region-text {
+                visibility: hidden !important;
+            }
+
+            .canvasWrap.panning .region {
+                /* Disable hover effects during panning */
+                pointer-events: none;
+                filter: none !important;
             }
 
             .side.open {
@@ -1607,10 +1625,16 @@
 
     // Performance tracking for smooth updates
 
-    // Optimized transform system
+    // Mobile detection and optimization
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    
+    // Optimized transform system with mobile-specific handling
     let transformPending = false;
     let lastTransformTime = 0;
-    const TRANSFORM_THROTTLE = 16; // ~60fps
+    let isTransforming = false;
+    let transformEndTimer = null;
+    const TRANSFORM_THROTTLE = isMobile ? 33 : 16; // Lower fps on mobile (30fps vs 60fps)
+    const MOBILE_TRANSFORM_DELAY = 200; // How long to wait before showing text on mobile
 
     function updateTransform(immediate = false) {
         const now = performance.now();
@@ -1632,10 +1656,33 @@
         transformPending = false;
         lastTransformTime = now;
         
-        constrainPosition();
+        // Mobile-specific optimizations
+        if (isMobile && !isTransforming) {
+            isTransforming = true;
+            // Hide text during transforms on mobile
+            const textElements = document.querySelectorAll('.region-text');
+            textElements.forEach(el => el.style.visibility = 'hidden');
+        }
         
-        // Apply transform immediately without complex animation state management
+        // Clear previous timer
+        if (transformEndTimer) {
+            clearTimeout(transformEndTimer);
+        }
+        
+        constrainPosition();
         svg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        
+        // Restore text visibility after transform ends (mobile only)
+        if (isMobile) {
+            transformEndTimer = setTimeout(() => {
+                if (isTransforming) {
+                    isTransforming = false;
+                    const textElements = document.querySelectorAll('.region-text');
+                    textElements.forEach(el => el.style.visibility = 'visible');
+                }
+                transformEndTimer = null;
+            }, MOBILE_TRANSFORM_DELAY);
+        }
     }
 
     function zoomIn() {
@@ -1764,6 +1811,17 @@
         hasMoved = false;
         mouseDownTarget = null;
         canvasWrap.classList.remove('panning');
+        
+        // Reset transform state if needed (for desktop consistency)
+        if (!isMobile && isTransforming) {
+            if (transformEndTimer) {
+                clearTimeout(transformEndTimer);
+            }
+            transformEndTimer = setTimeout(() => {
+                isTransforming = false;
+                transformEndTimer = null;
+            }, 50);
+        }
     });
 
     // Handle region painting (only when Shift is pressed)
@@ -1841,7 +1899,20 @@
         e.preventDefault();
     });
 
+    // Mobile touch optimization with more aggressive throttling
+    let touchMoveThrottle = false;
+    const TOUCH_THROTTLE_DELAY = 20; // Throttle touch moves to ~50fps on mobile
+
     canvasWrap.addEventListener('touchmove', (e) => {
+        if (touchMoveThrottle) {
+            return; // Skip this event if we're throttling
+        }
+
+        touchMoveThrottle = true;
+        setTimeout(() => {
+            touchMoveThrottle = false;
+        }, TOUCH_THROTTLE_DELAY);
+
         if (e.touches.length === 1) {
             // Single touch - pan
             const deltaX = e.touches[0].clientX - touchStartX;
@@ -1921,7 +1992,48 @@
             canvasWrap.classList.remove('panning');
             lastTouchDistance = 0;
             isTouchMoving = false;
+            
+            // Force immediate text visibility restore on mobile after touch ends
+            if (isMobile && isTransforming) {
+                if (transformEndTimer) {
+                    clearTimeout(transformEndTimer);
+                }
+                transformEndTimer = setTimeout(() => {
+                    isTransforming = false;
+                    const textElements = document.querySelectorAll('.region-text');
+                    textElements.forEach(el => el.style.visibility = 'visible');
+                    transformEndTimer = null;
+                }, 100); // Shorter delay for touch end
+            }
         }
+        e.preventDefault();
+    });
+
+    // Handle touch cancel events (when touch is interrupted)
+    canvasWrap.addEventListener('touchcancel', (e) => {
+        // Clean up touch state when touch is cancelled
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+            longPressTarget = null;
+        }
+        
+        isDragging = false;
+        canvasWrap.classList.remove('panning');
+        lastTouchDistance = 0;
+        isTouchMoving = false;
+        
+        // Force text visibility restore on mobile
+        if (isMobile && isTransforming) {
+            if (transformEndTimer) {
+                clearTimeout(transformEndTimer);
+            }
+            isTransforming = false;
+            const textElements = document.querySelectorAll('.region-text');
+            textElements.forEach(el => el.style.visibility = 'visible');
+            transformEndTimer = null;
+        }
+        
         e.preventDefault();
     });
 
